@@ -77,15 +77,37 @@ def escape_ics(text):
     )
 
 
-def fold_line(line, limit=73):
+def fold_line(line, limit=75):
+    """iCalendar 사양(RFC 5545)상 한 줄은 75옥텟을 넘으면 접어야(fold) 함.
+    바이트(옥텟) 길이 기준으로 안전하게 자르되, 멀티바이트 문자(한글 등)의
+    중간을 자르지 않도록 문자 단위로 누적 바이트 길이를 계산한다.
+    이전 버전은 '문자 수' 기준(cut=limit)으로만 잘라서, 한글처럼 문자당
+    바이트 수가 큰 텍스트에서 무의미한 공백(" ")만 있는 접힘 줄이 생기거나
+    줄이 옥텟 한도를 초과하는 문제가 있었다."""
     if len(line.encode("utf-8")) <= limit:
         return [line]
+
     out = []
-    while len(line.encode("utf-8")) > limit:
-        cut = limit
-        out.append(line[:cut])
-        line = " " + line[cut:]
-    out.append(line)
+    remaining = line
+    first = True
+    while remaining:
+        budget = limit if first else limit - 1
+        chunk = ""
+        chunk_bytes = 0
+        idx = 0
+        for ch in remaining:
+            ch_bytes = len(ch.encode("utf-8"))
+            if chunk_bytes + ch_bytes > budget:
+                break
+            chunk += ch
+            chunk_bytes += ch_bytes
+            idx += 1
+        if not chunk:
+            chunk = remaining[0]
+            idx = 1
+        out.append(chunk if first else " " + chunk)
+        remaining = remaining[idx:]
+        first = False
     return out
 
 
